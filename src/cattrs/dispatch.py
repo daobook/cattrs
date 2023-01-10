@@ -129,10 +129,7 @@ class FunctionDispatch:
             except Exception:
                 continue
             if ch:
-                if is_generator:
-                    return handler(typ)
-                else:
-                    return handler
+                return handler(typ) if is_generator else handler
         return None
 
     def get_num_fns(self) -> int:

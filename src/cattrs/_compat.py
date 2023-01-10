@@ -20,7 +20,7 @@ from attr import NOTHING, Attribute, Factory
 from attr import fields as attrs_fields
 from attr import resolve_types
 
-version_info = sys.version_info[0:3]
+version_info = sys.version_info[:3]
 is_py37 = version_info[:2] == (3, 7)
 is_py38 = version_info[:2] == (3, 8)
 is_py39_plus = version_info[:2] >= (3, 9)
@@ -375,14 +375,11 @@ else:
         )
 
     def is_generic(obj):
-        return isinstance(obj, _GenericAlias) or isinstance(obj, GenericAlias)
+        return isinstance(obj, (_GenericAlias, GenericAlias))
 
     def copy_with(type, args):
         """Replace a generic type's arguments."""
-        if is_annotated(type):
-            # typing.Annotated requires a special case.
-            return Annotated[args]  # type: ignore
-        return type.__origin__[args]
+        return Annotated[args] if is_annotated(type) else type.__origin__[args]
 
 
 def is_generic_attrs(type):

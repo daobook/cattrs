@@ -259,11 +259,9 @@ def _create_dataclass(
                 [
                     (n, a.type)
                     if a._default is NOTHING
-                    else (
-                        (n, a.type, field(default=a._default))
-                        if not isinstance(a._default, Factory)
-                        else (n, a.type, field(default_factory=a._default.factory))
-                    )
+                    else (n, a.type, field(default_factory=a._default.factory))
+                    if isinstance(a._default, Factory)
+                    else (n, a.type, field(default=a._default))
                     for n, a in zip(gen_attr_names(), attrs)
                 ],
                 frozen=frozen,
@@ -481,9 +479,9 @@ def set_typed_attrs(
 
     type = draw(
         sampled_from(
-            [set, set[int], AbcSet[int], AbcMutableSet[int]]
-            if not legacy_types_only
-            else [set, Set[int], MutableSet[int]]
+            [set, Set[int], MutableSet[int]]
+            if legacy_types_only
+            else [set, set[int], AbcSet[int], AbcMutableSet[int]]
         )
     )
     return (
@@ -510,9 +508,9 @@ def frozenset_typed_attrs(
         default = draw(val_strat)
     type = draw(
         sampled_from(
-            [frozenset[int], frozenset, FrozenSet[int], FrozenSet]
-            if not legacy_types_only
-            else [frozenset, FrozenSet[int], FrozenSet]
+            [frozenset, FrozenSet[int], FrozenSet]
+            if legacy_types_only
+            else [frozenset[int], frozenset, FrozenSet[int], FrozenSet]
         )
     )
     return (
@@ -551,9 +549,9 @@ def list_typed_attrs(
         attr.ib(
             type=draw(
                 sampled_from(
-                    [list[float], list, List[float], List]
-                    if not legacy_types_only
-                    else [List, List[float], list]
+                    [List, List[float], list]
+                    if legacy_types_only
+                    else [list[float], list, List[float], List]
                 )
             ),
             default=default,
@@ -588,7 +586,7 @@ def seq_typed_attrs(
 
     return (
         attr.ib(
-            type=AbcSequence[int] if not legacy_types_only else Sequence[int],
+            type=Sequence[int] if legacy_types_only else AbcSequence[int],
             default=default,
             kw_only=draw(booleans()) if kw_only is None else kw_only,
         ),
@@ -621,9 +619,9 @@ def mutable_seq_typed_attrs(
 
     return (
         attr.ib(
-            type=AbcMutableSequence[float]
-            if not legacy_types_only
-            else MutableSequence[float],
+            type=MutableSequence[float]
+            if legacy_types_only
+            else AbcMutableSequence[float],
             default=default,
             kw_only=draw(booleans()) if kw_only is None else kw_only,
         ),
@@ -645,9 +643,9 @@ def homo_tuple_typed_attrs(draw, defaults=None, legacy_types_only=False, kw_only
         attr.ib(
             type=draw(
                 sampled_from(
-                    [tuple[str, ...], tuple, Tuple, Tuple[str, ...]]
-                    if not legacy_types_only
-                    else [tuple, Tuple, Tuple[str, ...]]
+                    [tuple, Tuple, Tuple[str, ...]]
+                    if legacy_types_only
+                    else [tuple[str, ...], tuple, Tuple, Tuple[str, ...]]
                 )
             ),
             default=default,
