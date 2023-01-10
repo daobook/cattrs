@@ -138,7 +138,7 @@ def gen_attr_names():
     lc = string.ascii_lowercase
     has_underscore = False
     for c in lc:
-        yield c if not has_underscore else "_" + c
+        yield f"_{c}" if has_underscore else c
         has_underscore = not has_underscore
     for outer in lc:
         for inner in lc:

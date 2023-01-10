@@ -50,8 +50,7 @@ class ForbiddenExtraKeysError(Exception):
 
         msg = (
             message
-            if message
-            else f"Extra fields in constructor for {cl.__name__}: {', '.join(extra_fields)}"
+            or f"Extra fields in constructor for {cl.__name__}: {', '.join(extra_fields)}"
         )
 
         super().__init__(msg)

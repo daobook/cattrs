@@ -4,9 +4,7 @@ if is_py37 or is_py38:
     from typing import Dict, List
 
     def change_type_param(cl, new_params):
-        if is_bare(cl):
-            return cl[new_params]
-        return cl.copy_with(new_params)
+        return cl[new_params] if is_bare(cl) else cl.copy_with(new_params)
 
     List_origin = List
     Dict_origin = Dict

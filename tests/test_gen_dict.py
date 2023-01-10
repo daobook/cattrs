@@ -85,23 +85,22 @@ def test_nodefs_generated_unstructuring_cl(
 
     for attr, val in zip(cl.__attrs_attrs__, vals):
         if attr.default is not NOTHING:
-            if not isinstance(attr.default, Factory):
-                if val == attr.default:
-                    assert attr.name not in res
-                else:
-                    assert attr.name in res
-            else:
+            if isinstance(attr.default, Factory):
                 # The default is a factory, but might take self.
                 if attr.default.takes_self:
                     if val == attr.default.factory(cl):
                         assert attr.name not in res
                     else:
                         assert attr.name in res
+                elif val == attr.default.factory():
+                    assert attr.name not in res
                 else:
-                    if val == attr.default.factory():
-                        assert attr.name not in res
-                    else:
-                        assert attr.name in res
+                    assert attr.name in res
+
+            elif val == attr.default:
+                assert attr.name not in res
+            else:
+                assert attr.name in res
 
 
 @given(
@@ -144,22 +143,21 @@ def test_individual_overrides(converter_cls, cl_and_vals):
         if attr.name == chosen_name:
             assert attr.name in res
         elif attr.default is not NOTHING:
-            if not isinstance(attr.default, Factory):
-                if val == attr.default:
-                    assert attr.name not in res
-                else:
-                    assert attr.name in res
-            else:
+            if isinstance(attr.default, Factory):
                 if attr.default.takes_self:
                     if val == attr.default.factory(inst):
                         assert attr.name not in res
                     else:
                         assert attr.name in res
+                elif val == attr.default.factory():
+                    assert attr.name not in res
                 else:
-                    if val == attr.default.factory():
-                        assert attr.name not in res
-                    else:
-                        assert attr.name in res
+                    assert attr.name in res
+
+            elif val == attr.default:
+                assert attr.name not in res
+            else:
+                assert attr.name in res
 
 
 @given(

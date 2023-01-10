@@ -129,11 +129,7 @@ def test_structuring_hetero_tuples(list_of_vals_and_types, detailed_validation):
     converter = BaseConverter(detailed_validation=detailed_validation)
     types = tuple(e[1] for e in list_of_vals_and_types)
     vals = [e[0] for e in list_of_vals_and_types]
-    if types:
-        t = Tuple[types]
-    else:
-        t = Tuple
-
+    t = Tuple[types] if types else Tuple
     converted = converter.structure(vals, t)
 
     assert isinstance(converted, tuple)
@@ -238,11 +234,7 @@ def test_structuring_lists_of_opt(list_and_type, detailed_validation: bool):
     )
 
     if not is_bare(t) and (args[0] not in (Any, str) and not is_optional):
-        with raises(
-            (TypeError, ValueError)
-            if not detailed_validation
-            else IterableValidationError
-        ):
+        with raises(IterableValidationError if detailed_validation else (TypeError, ValueError)):
             converter.structure(l, t)
 
     optional_t = Optional[args[0]]

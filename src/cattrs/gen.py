@@ -95,7 +95,7 @@ def make_dict_unstructure_fn(
         cl = origin
 
     cl_name = cl.__name__
-    fn_name = "unstructure_" + cl_name
+    fn_name = f"unstructure_{cl_name}"
     globs = {}
     lines = []
     invocation_lines = []
@@ -128,26 +128,25 @@ def make_dict_unstructure_fn(
             handler = None
             if override.unstruct_hook is not None:
                 handler = override.unstruct_hook
+            elif a.type is None:
+                handler = converter.unstructure
+
             else:
-                if a.type is not None:
-                    t = a.type
-                    if isinstance(t, TypeVar):
-                        if t.__name__ in mapping:
-                            t = mapping[t.__name__]
-                        else:
-                            handler = converter.unstructure
-                    elif is_generic(t) and not is_bare(t) and not is_annotated(t):
-                        t = deep_copy_with(t, mapping)
+                t = a.type
+                if isinstance(t, TypeVar):
+                    if t.__name__ in mapping:
+                        t = mapping[t.__name__]
+                    else:
+                        handler = converter.unstructure
+                elif is_generic(t) and not is_bare(t) and not is_annotated(t):
+                    t = deep_copy_with(t, mapping)
 
-                    if handler is None:
-                        try:
-                            handler = converter._unstructure_func.dispatch(t)
-                        except RecursionError:
-                            # There's a circular reference somewhere down the line
-                            handler = converter.unstructure
-                else:
-                    handler = converter.unstructure
-
+                if handler is None:
+                    try:
+                        handler = converter._unstructure_func.dispatch(t)
+                    except RecursionError:
+                        # There's a circular reference somewhere down the line
+                        handler = converter.unstructure
             is_identity = handler == converter._unstructure_identity
 
             if not is_identity:
@@ -173,13 +172,11 @@ def make_dict_unstructure_fn(
                         )
                     else:
                         lines.append(f"  if instance.{attr_name} != {def_name}():")
-                    lines.append(f"    res['{kn}'] = {invoke}")
                 else:
                     globs[def_name] = d
                     internal_arg_parts[def_name] = d
                     lines.append(f"  if instance.{attr_name} != {def_name}:")
-                    lines.append(f"    res['{kn}'] = {invoke}")
-
+                lines.append(f"    res['{kn}'] = {invoke}")
             else:
                 # No default or no override.
                 invocation_lines.append(f"'{kn}': {invoke},")
@@ -232,10 +229,7 @@ def _generate_mapping(cl: Type, old_mapping: Dict[str, type]) -> Dict[str, type]
             continue
         mapping[p.__name__] = t
 
-    if not mapping:
-        return old_mapping
-
-    return mapping
+    return mapping or old_mapping
 
 
 def find_structure_handler(
@@ -249,7 +243,7 @@ def find_structure_handler(
         # If the user as requested to use attrib converters, use nothing
         # so it falls back to that.
         handler = None
-    elif a.converter is not None and not prefer_attrs_converters and type is not None:
+    elif a.converter is not None and type is not None:
         handler = c._structure_func.dispatch(type)
         if handler == c._structure_error:
             handler = None
@@ -289,7 +283,7 @@ def make_dict_structure_fn(
         cl = mapping.get(cl.__name__, cl)
 
     cl_name = cl.__name__
-    fn_name = "structure_" + cl_name
+    fn_name = f"structure_{cl_name}"
 
     # We have generic parameters and need to generate a unique name for the function
     for p in getattr(cl, "__parameters__", ()):
@@ -327,8 +321,7 @@ def make_dict_structure_fn(
         globs["__c_feke"] = ForbiddenExtraKeysError
 
     if _cattrs_detailed_validation:
-        lines.append("  res = {}")
-        lines.append("  errors = []")
+        lines.extend(("  res = {}", "  errors = []"))
         invocation_lines.append("**res,")
         internal_arg_parts["__c_cve"] = ClassValidationError
         for a in attrs:
@@ -380,11 +373,12 @@ def make_dict_structure_fn(
             i = i[:-2]
             lines.append(f"{i}except Exception as e:")
             i = f"{i}  "
-            lines.append(
-                f"{i}e.__notes__ = getattr(e, '__notes__', []) + [\"Structuring class {cl.__qualname__} @ attribute {an}\"]"
+            lines.extend(
+                (
+                    f"""{i}e.__notes__ = getattr(e, '__notes__', []) + [\"Structuring class {cl.__qualname__} @ attribute {an}\"]""",
+                    f"{i}errors.append(e)",
+                )
             )
-            lines.append(f"{i}errors.append(e)")
-
         if _cattrs_forbid_extra_keys:
             post_lines += [
                 "  unknown_fields = set(o.keys()) - __c_a",
@@ -426,11 +420,7 @@ def make_dict_structure_fn(
             # regenerated.
             if a.converter is not None and _cattrs_prefer_attrib_converters:
                 handler = None
-            elif (
-                a.converter is not None
-                and not _cattrs_prefer_attrib_converters
-                and t is not None
-            ):
+            elif a.converter is not None and t is not None:
                 handler = converter._structure_func.dispatch(t)
                 if handler == converter._structure_error:
                     handler = None
@@ -479,11 +469,7 @@ def make_dict_structure_fn(
                 # regenerated.
                 if a.converter is not None and _cattrs_prefer_attrib_converters:
                     handler = None
-                elif (
-                    a.converter is not None
-                    and not _cattrs_prefer_attrib_converters
-                    and t is not None
-                ):
+                elif a.converter is not None and t is not None:
                     handler = converter._structure_func.dispatch(t)
                     if handler == converter._structure_error:
                         handler = None
@@ -567,18 +553,16 @@ def make_iterable_unstructure_fn(
             handler = converter._unstructure_func.dispatch(type_arg)
 
     globs = {"__cattr_seq_cl": unstructure_to or cl, "__cattr_u": handler}
-    lines = []
-
-    lines.append(f"def {fn_name}(iterable):")
-    lines.append("    res = __cattr_seq_cl(__cattr_u(i) for i in iterable)")
+    lines = [
+        f"def {fn_name}(iterable):",
+        "    res = __cattr_seq_cl(__cattr_u(i) for i in iterable)",
+    ]
 
     total_lines = lines + ["    return res"]
 
     eval(compile("\n".join(total_lines), "", "exec"), globs)
 
-    fn = globs[fn_name]
-
-    return fn
+    return globs[fn_name]
 
 
 HeteroTupleUnstructureFn = Callable[[Tuple[Any, ...]], Any]
@@ -600,9 +584,8 @@ def make_hetero_tuple_unstructure_fn(
     globs = {f"__cattr_u_{i}": h for i, h in enumerate(handlers)}
     if unstructure_to is not tuple:
         globs["__cattr_seq_cl"] = unstructure_to or cl
-    lines = []
+    lines = [f"def {fn_name}(tup):"]
 
-    lines.append(f"def {fn_name}(tup):")
     if unstructure_to is not tuple:
         lines.append("    res = __cattr_seq_cl((")
     else:
@@ -622,9 +605,7 @@ def make_hetero_tuple_unstructure_fn(
 
     eval(compile("\n".join(total_lines), "", "exec"), globs)
 
-    fn = globs[fn_name]
-
-    return fn
+    return globs[fn_name]
 
 
 MappingUnstructureFn = Callable[[Mapping[Any, Any]], Any]
@@ -645,11 +626,7 @@ def make_mapping_unstructure_fn(
     # Let's try fishing out the type args.
     if getattr(cl, "__args__", None) is not None:
         args = get_args(cl)
-        if len(args) == 2:
-            key_arg, val_arg = args
-        else:
-            # Probably a Counter
-            key_arg, val_arg = args, Any
+        key_arg, val_arg = args if len(args) == 2 else (args, Any)
         # We can do the dispatch here and now.
         kh = key_handler or converter._unstructure_func.dispatch(key_arg)
         if kh == converter._unstructure_identity:
@@ -668,20 +645,16 @@ def make_mapping_unstructure_fn(
     k_u = "__cattr_k_u(k)" if kh is not None else "k"
     v_u = "__cattr_v_u(v)" if val_handler is not None else "v"
 
-    lines = []
-
-    lines.append(f"def {fn_name}(mapping):")
-    lines.append(
-        f"    res = __cattr_mapping_cl(({k_u}, {v_u}) for k, v in mapping.items())"
-    )
+    lines = [
+        f"def {fn_name}(mapping):",
+        f"    res = __cattr_mapping_cl(({k_u}, {v_u}) for k, v in mapping.items())",
+    ]
 
     total_lines = lines + ["    return res"]
 
     eval(compile("\n".join(total_lines), "", "exec"), globs)
 
-    fn = globs[fn_name]
-
-    return fn
+    return globs[fn_name]
 
 
 MappingStructureFn = Callable[[Mapping[Any, Any], Any], T]
